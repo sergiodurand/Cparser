@@ -9,10 +9,10 @@ Cparser was built on top of JavaCC (Java Parser Generator)
 This project was part of my Masters in Computing Science at University of Sao Paulo / Brazil.  
 For more details about this project please refer to:
 
-* A tool for generating code from Bluespec SystemVerilog based on finite state machine described in UML and C (available only in Portuguese)  
+* **A tool for generating code from Bluespec SystemVerilog based on finite state machine described in UML and C** (*available only in Portuguese*)  
 Master's Dissertation  
 DOI: [10.11606/D.55.2012.tde-15042013-102159](https://doi.org/10.11606/D.55.2012.tde-15042013-102159)  
 
-* A tool to support Bluespec SystemVerilog coding based on UML diagrams  
+* **A tool to support Bluespec SystemVerilog coding based on UML diagrams**  
 Published in IECON 2012 - 38th Annual Conference on IEEE Industrial Electronics Society  
 DOI: [10.1109/IECON.2012.6389493](https://doi.org/10.1109/IECON.2012.6389493)  
