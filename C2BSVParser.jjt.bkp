@@ -1,0 +1,448 @@
+/*
+
+OLD GRAMMAR - JUST A BACKUP
+THIS FILE WILL BE DELETED SOON
+
+options {
+	STATIC = false;
+	DEBUG_PARSER = false;
+	DEBUG_TOKEN_MANAGER = false;
+	MULTI=true;
+	//NODE_DEFAULT_VOID=true;
+	NODE_PACKAGE = "lcr.c2bsv.parser";
+	VISITOR = false;
+	NODE_SCOPE_HOOK = false;
+	JDK_VERSION = "1.5";
+	JAVA_UNICODE_ESCAPE = true;
+    UNICODE_INPUT = true;
+}
+ 
+PARSER_BEGIN(C2BSVParser)
+package lcr.c2bsv.parser;
+ 
+import java.util.*;
+import java.io.*;
+
+
+public class C2BSVParser {
+
+	public static void main (String args []) throws ParseException, FileNotFoundException {
+		C2BSVParser parser ;
+
+		if(args.length == 1) {
+        	System.out.println("C Parser:  Reading from file " + args[0] + " . . ." );
+
+			try {
+        		parser = new C2BSVParser(new java.io.FileInputStream(args[0]));
+      		} catch(java.io.FileNotFoundException e){
+        		System.out.println("C2BSV:  File " + args[0] + " not found.");
+		        return ;
+	        }
+		} else {
+        System.out.println("C2BSV Version 0.1Alpha:  Usage is java C2BSV inputfile");
+        return ;
+      	}
+
+      	try {
+        	SimpleNode root = parser.TranslationUnit();
+        	root.dump("");
+            System.out.println("C2BSV: C* program parsed successfully.");
+        } catch(ParseException e) {
+        	System.out.println("C2BSV:  Encountered errors during parse.");
+        	e.printStackTrace();
+      	}
+	}
+}
+
+PARSER_END(C2BSVParser)
+
+SKIP :
+{
+        " "
+|       "\r"
+|       "\t"
+|       "\n"
+|  <"//" (~["\n","\r"])* ("\n" | "\r" | "\r\n")>
+|  <"/*" (~["*"])* "*" ("*" | ~["*","/"] (~["*"])* "*")* "/">
+}
+TOKEN : 
+{
+ <INTEGER_LITERAL: <DECIMAL_LITERAL> (["l","L"])? | <HEX_LITERAL> (["l","L"])? | <OCTAL_LITERAL> (["l","L"])?>
+|  <#DECIMAL_LITERAL: ["1"-"9"] (["0"-"9"])*>
+|  <#HEX_LITERAL: "0" ["x","X"] (["0"-"9","a"-"f","A"-"F"])+>
+|  <#OCTAL_LITERAL: "0" (["0"-"7"])*>
+|  <FLOATING_POINT_LITERAL: (["0"-"9"])+ "." (["0"-"9"])* (<EXPONENT>)? (["f","F","d","D"])? | "." (["0"-"9"])+ (<EXPONENT>)? (["f","F","d","D"])? | (["0"-"9"])+ <EXPONENT> (["f","F","d","D"])? | (["0"-"9"])+ (<EXPONENT>)? ["f","F","d","D"]>
+|  <#EXPONENT: ["e","E"] (["+","-"])? (["0"-"9"])+>
+|  <STRING_LITERAL: "\"" ( ~["\"","\\","\n","\r"] | "\\" ( ["n","t","b","r","f","\\","\'","\""] | ["0"-"7"] (["0"-"7"])?  | ["0"-"3"] ["0"-"7"] ["0"-"7"] | ( ["\n","\r"] | "\r\n")))* "\"">
+}
+TOKEN : {
+        <RETURN: "return"> |
+        <STRUCT: "struct"> |
+        <WHILE: "while"> |
+        <FLOAT: "float"> |
+        <ELSE: "else"> |
+        <VOID: "void"> |
+        <INT: "int"> |
+        <IF: "if">
+}
+
+TOKEN : {
+ <IDENTIFIER: <LETTER> (<LETTER> | <DIGIT>)*>
+| <SEMICOLON: ";">
+|  <#LETTER: ["$","A"-"Z","_","a"-"z"]>
+|  <#DIGIT: ["0"-"9"]>
+}
+
+
+SimpleNode TranslationUnit() #root(true): {}
+{
+        try{
+        (ExternalDeclaration())+
+        }
+        catch(ParseException e)
+        {
+                System.err.println(e.toString());
+                Token token = getNextToken(); 
+        } {return jjtThis;}
+        
+}
+
+void ExternalDeclaration()  #void: {}
+{
+        try{
+                ( LOOKAHEAD( FunctionDefinition() ) FunctionDefinition() | Declaration())
+        }
+        catch(ParseException e)
+        {
+                System.err.println(e.toString());
+                Token token = getNextToken(); 
+                while(!(token.kind!=SEMICOLON && token.kind!=EOF))
+                        token=getNextToken(); 
+        }
+}
+
+void FunctionDefinition() #FunctionDefinition(true): {}
+{
+        [ LOOKAHEAD(DeclarationSpecifiers()) DeclarationSpecifiers()] DirectDeclarator() [ DeclarationList() ] CompoundStatement()
+}
+
+void Declaration() #Declaration: {}
+{
+        DeclarationSpecifiers() [ InitDirectDeclaratorList() ] ";"
+}
+
+void DeclarationList() #void: {}
+{
+        ( LOOKAHEAD(Declaration()) Declaration() )+
+}
+
+void DeclarationSpecifiers() #void: {}
+{
+          TypeSpecifier() 
+}
+
+void TypeSpecifier() #Type: {Token t1;}
+{
+        ( t1 = <VOID>{ jjtThis.jjtSetValue(t1.image); }
+        | t1 = <INT> { jjtThis.jjtSetValue(t1.image); }
+        | t1 = <FLOAT> { jjtThis.jjtSetValue(t1.image); }
+        | StructOrUnionSpecifier() { jjtThis.jjtSetValue("Struct"); } ) 
+}
+
+
+void StructOrUnionSpecifier() #Struct: {Token t1;}
+{
+        {
+
+        }
+
+        <STRUCT>( LOOKAHEAD(3) [ t1 = <IDENTIFIER>  {jjtThis.jjtSetValue(t1.image); } #Identifier] "{" StructDeclarationList() "}" |
+                                                         t1 = <IDENTIFIER> {jjtThis.jjtSetValue(t1.image); } #Identifier ) 
+}
+
+
+void StructDeclarationList() #void: {}
+{
+        (StructDeclaration())+
+}
+
+void InitDirectDeclaratorList() #void : {}
+{
+        InitDirectDeclarator() ("," InitDirectDeclarator())*
+}
+
+void InitDirectDeclarator() #void: {}
+{
+        DirectDeclarator() [ "=" Initializer() ]
+}
+
+void StructDeclaration() #void: {}
+{
+        SpecifierQualifierList() StructDirectDeclaratorList() ";"
+}
+
+void SpecifierQualifierList() #void : {}
+{
+          TypeSpecifier() [ LOOKAHEAD(SpecifierQualifierList())
+                SpecifierQualifierList() ]
+}
+
+void StructDirectDeclaratorList() #void : {}
+{
+        StructDirectDeclarator() ( "," StructDirectDeclarator() )*
+}
+
+void StructDirectDeclarator() #void : {}
+{
+        ( LOOKAHEAD(3) DirectDeclarator() | [ DirectDeclarator() ] ":" ConstantExpression() )
+}
+
+void DirectDeclarator() #void: {Token t1;}
+{
+        (  t1 = <IDENTIFIER>  {jjtThis.jjtSetValue(t1.image);}  #Identifier
+
+         | "(" DirectDeclarator() ")" )
+
+        ( "[" [ ConstantExpression() #Size] "]" #Array(2)
+           | (LOOKAHEAD(3) "(" ParameterTypeList() #Parameter ")" 
+           | "(" [ IdentifierList() ] ")" )*)
+}
+ 
+void ParameterTypeList() #void: {}
+{
+        ParameterList() ["," "..." ]
+}
+
+void ParameterList() #void: {}
+{
+        ParameterDeclaration() (LOOKAHEAD(2) "," ParameterDeclaration())*
+}
+
+void ParameterDeclaration() #Declaration: {}
+{
+        DeclarationSpecifiers() ( LOOKAHEAD(DirectDeclarator()) DirectDeclarator() | [ AbstractDirectDeclarator() ] )  
+}
+
+void IdentifierList() #void : {}
+{
+        <IDENTIFIER> ("," <IDENTIFIER>)*
+}
+
+void Initializer() #Initialization : {}
+{
+        ( AssignmentExpression() |
+          "{" InitializerList() [","] "}" )
+}
+
+void InitializerList() #void : {}
+{
+        Initializer() (LOOKAHEAD(2) "," Initializer())*
+}
+
+void TypeName() #void : {}
+{
+        SpecifierQualifierList() [ AbstractDirectDeclarator() ]
+}
+
+void AbstractDirectDeclarator() #void : {}
+{
+        ( DirectAbstractDirectDeclarator() )
+}
+
+void DirectAbstractDirectDeclarator() #void : {}
+{
+        ( LOOKAHEAD(2) "(" AbstractDirectDeclarator() ")" |
+                                   "[" [ConstantExpression()] "]" |
+                       "(" [ParameterTypeList()] ")" )
+
+          ( "[" [ ConstantExpression() ] "]" | "(" [ ParameterTypeList() ] ")" )*
+}
+
+void Statement() #void : {}
+{
+        ( 
+          ExpressionStatement() |
+          CompoundStatement() |
+          SelectionStatement() |
+          IterationStatement() |
+          JumpStatement() 
+          )
+}
+
+void ExpressionStatement() #void : {}
+{
+        [ Expression() ] ";"
+}
+
+void CompoundStatement() #void : {}
+{
+        "{" [ LOOKAHEAD(DeclarationList()) DeclarationList() ]
+            [ StatementList() ]
+        "}"
+}
+
+void StatementList() #void : {}
+{
+        (Statement())+
+}
+
+void SelectionStatement() #void : {}
+{
+        IfStatement() [ LOOKAHEAD(2) ElseStatement()  ]
+}
+
+void IfStatement() #If : {}
+{
+    <IF> "(" Expression() ")" Statement()
+}
+
+void ElseStatement() #Else : {}
+{
+    <ELSE> Statement()
+}
+
+void IterationStatement() #While : {}
+{
+        ( <WHILE> "(" Expression() ")" Statement() )
+}
+
+void JumpStatement() #Return : {}
+{
+        ( <RETURN> [ Expression() ] ";" )
+}
+
+void Expression() #Expression : {}
+{
+        AssignmentExpression() ( "," AssignmentExpression() )*
+}
+
+void AssignmentExpression() #void : {}
+{
+          LOOKAHEAD(UnaryExpression() AssignmentOperator()) UnaryExpression() AssignmentOperator() AssignmentExpression() |
+          LOOKAHEAD(3) ConditionalExpression()
+}
+
+void AssignmentOperator() #void : {}
+{
+        ( "=" #Assign 
+        | "*=" #Multiply_and_Assign
+        | "/=" #Divide_and_Assign
+        | "%=" #Mod_and_Assign
+        | "+=" #Sum_and_Assign
+        | "-=" #Sub_and_Assign
+        | "<<=" #Left_Shift_and_Assign
+        | ">>=" #Right_Shift_and_Assign
+        | "&=" #And_Bit_and_Assign
+        | "^=" #Xor_and_Assign
+        | "|=" #Or_Bit_and_Assign )
+}
+
+void ConditionalExpression() #void : {}
+{
+        LogicalORExpression() [ "?"  #Conditional Expression() ":" ConditionalExpression() ]
+}
+
+void ConstantExpression() #void : {}
+{
+        ConditionalExpression()
+}
+
+void LogicalORExpression() #void : {}
+{
+        LogicalANDExpression() [ "||" #Or LogicalORExpression() ]
+}
+
+void LogicalANDExpression() #void : {}
+{
+        InclusiveORExpression() [ "&&" #And LogicalANDExpression() ]
+}
+
+void InclusiveORExpression() #void : {}
+{
+        ExclusiveORExpression() [ "|" #Or_Bit InclusiveORExpression() ]
+}
+
+void ExclusiveORExpression() #void : {}
+{
+        ANDExpression() [ "^" #Xor_Bit ExclusiveORExpression() ]
+}
+
+void ANDExpression() #void : {}
+{
+        EqualityExpression() [ "&"  #And_Bit ANDExpression() ]
+}
+
+void EqualityExpression() #void : {}
+{
+        RelationalExpression() [ ( "==" #Equal | "!=" #Not_Equal) EqualityExpression() ]
+}
+
+void RelationalExpression() #void : {}
+{
+        ShiftExpression() [ ( "<" #Smaller| ">" #Bigger| "<=" #Smaller_or_Equal | ">=" #Bigger_or_equal) RelationalExpression() ]
+}
+
+void ShiftExpression() #void : {}
+{
+        AdditiveExpression() [ ( "<<" #Left_Shift| ">>"#Right_Shift ) ShiftExpression() ]
+}
+
+void AdditiveExpression() #void : {}
+{
+        MultiplicativeExpression() [ ( "+" #Add | "-" #Sub ) AdditiveExpression() ]
+}
+
+void MultiplicativeExpression() #void : {}
+{
+        CastExpression() [ ( "*" #Multiply | "/" #Divide | "%" #Mod ) MultiplicativeExpression() ]
+}
+
+void CastExpression() #void : {}
+{
+        ( LOOKAHEAD("(" TypeName() ")" CastExpression() ) "(" #Cast TypeName() ")" CastExpression() |
+          UnaryExpression() )
+}
+
+void UnaryExpression() #void : {}
+{
+        ( LOOKAHEAD(3) PostfixExpression() |
+          "++" #Increment UnaryExpression() |
+          "--" #Decrement UnaryExpression() |
+          UnaryOperator() CastExpression() )
+}
+
+void UnaryOperator() #VERRR : {}
+{
+        ( "+" | "-" | "~" | "!" )
+}
+
+void PostfixExpression() #void : {}
+{
+        PrimaryExpression() ( "[" Expression() "]" |
+                              "(" [ LOOKAHEAD(ArgumentExpressionList() ) ArgumentExpressionList() ] ")" |
+                                                  "." <IDENTIFIER> |
+                                                  "++" #Increment |
+                                                  "--" #Decrement )*
+}
+
+void PrimaryExpression() #void: {Token t1; }
+{
+        ( t1 = <IDENTIFIER> {jjtThis.jjtSetValue(t1.image); } #PEXPR|
+          Constant() |
+          "(" Expression() ")" )
+}
+
+void ArgumentExpressionList() #void : {}
+{
+        AssignmentExpression() ( "," AssignmentExpression() )*
+}
+
+void Constant() #void : {Token t1;}
+{
+ t1 = <INTEGER_LITERAL> {jjtThis.jjtSetValue(t1.image);} #Int_Constant |
+  t1 = <FLOATING_POINT_LITERAL> {jjtThis.jjtSetValue(t1.image);}  #Float_Constant |
+  t1=<STRING_LITERAL> { jjtThis.jjtSetValue(t1.image); } #String 
+}
+
+
+*/
